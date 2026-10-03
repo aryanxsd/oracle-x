@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+/*
+ * ORACLE X theme
+ * Calm enterprise palette: deep navy shell, neutral canvas, risk colours used
+ * only for status so they always mean something.
+ */
+
+@layer base {
+  :root {
+    --brand-primary: #1f5eff;
+    --brand-primary-foreground: #ffffff;
+    --brand-nav-bg: #0b1426;
+    --brand-nav-fg: #e6ebf5;
+    --brand-nav-muted: #8b97ad;
+    --brand-nav-active: #16223b;
+
+    --background: #f5f7fb;
+    --foreground: #0d1526;
+    --card: #ffffff;
+    --card-foreground: #0d1526;
+    --popover: #ffffff;
+    --popover-foreground: #0d1526;
+    --primary: var(--brand-primary);
+    --primary-foreground: var(--brand-primary-foreground);
+    --secondary: #eef1f7;
+    --secondary-foreground: #0d1526;
+    --muted: #eef1f7;
+    --muted-foreground: #5b6679;
+    --accent: #eef1f7;
+    --accent-foreground: #0d1526;
+    --destructive: #d92d20;
+    --destructive-foreground: #ffffff;
+    --border: #e1e6ef;
+    --input: #e1e6ef;
+    --ring: var(--brand-primary);
+    --radius: 0.75rem;
+
+    /* Risk bands — status colours only */
+    --band-critical: #d92d20;
+    --band-elevated: #e8590c;
+    --band-watch: #eab308;
+    --band-watch-fg: #8a6a00;
+    --band-normal: #12a150;
+  }
+
+  .dark {
+    --background: #0a101d;
+    --foreground: #e8edf6;
+    --card: #111a2c;
+    --card-foreground: #e8edf6;
+    --popover: #111a2c;
+    --popover-foreground: #e8edf6;
+    --secondary: #172238;
+    --secondary-foreground: #e8edf6;
+    --muted: #172238;
+    --muted-foreground: #93a0b7;
+    --accent: #172238;
+    --accent-foreground: #e8edf6;
+    --border: #22304a;
+    --input: #22304a;
+    --band-watch-fg: #facc15;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-nav: var(--brand-nav-bg);
+  --color-nav-fg: var(--brand-nav-fg);
+  --color-nav-muted: var(--brand-nav-muted);
+  --color-nav-active: var(--brand-nav-active);
+  --color-band-critical: var(--band-critical);
+  --color-band-elevated: var(--band-elevated);
+  --color-band-watch: var(--band-watch);
+  --color-band-watch-fg: var(--band-watch-fg);
+  --color-band-normal: var(--band-normal);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+/* Readable rendering of agent-written markdown (council findings, case files). */
+@layer components {
+  .oracle-prose h1 { @apply mt-6 mb-2 text-xl font-semibold; }
+  .oracle-prose h2 { @apply mt-6 mb-2 border-b pb-1 text-base font-semibold; }
+  .oracle-prose h3 { @apply mt-4 mb-1.5 text-sm font-semibold; }
+  .oracle-prose p { @apply my-2; }
+  .oracle-prose ul { @apply my-2 list-disc space-y-1 pl-5; }
+  .oracle-prose ol { @apply my-2 list-decimal space-y-1 pl-5; }
+  .oracle-prose strong { @apply font-semibold; }
+  .oracle-prose code { @apply rounded bg-muted px-1 py-0.5 font-mono text-[12px]; }
+  .oracle-prose th { @apply border-b bg-muted/60 px-3 py-2 font-medium; }
+  .oracle-prose td { @apply border-b px-3 py-2 align-top; }
+  .oracle-prose tr:last-child td { @apply border-b-0; }
+  .oracle-prose blockquote { @apply my-2 border-l-2 pl-3 text-muted-foreground; }
+  .oracle-prose > :first-child { @apply mt-0; }
+}
