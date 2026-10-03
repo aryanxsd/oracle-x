@@ -49,7 +49,7 @@ const mmss = (s: number | null) => (s == null ? "" : `${Math.floor(s / 60)}:${St
  * Runs and follows the existing Snowflake council (AGENTS.SP_RUN_COUNCIL) via /api/council and
  * /api/council/{runId}. No request stays open for the run; a repeated start re-uses the run in progress.
  */
-export function CouncilRunner({ entityId, initialRunId }: { entityId: string; initialRunId?: string | null }) {
+export function CouncilRunner({ entityId, initialRunId, readOnly = false }: { entityId: string; initialRunId?: string | null; readOnly?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const search = useSearchParams()
@@ -94,15 +94,21 @@ export function CouncilRunner({ entityId, initialRunId }: { entityId: string; in
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-4">
-        <Button onClick={() => start.mutate()} disabled={running}>
-          {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />}
-          {running ? "Council in progress" : s ? "Run a new council" : `Investigate ${entityId} with the council`}
-        </Button>
-        <p className="text-sm text-muted-foreground">
-          About 5–7 minutes. You can leave this page — progress is kept in Snowflake.
+      {readOnly ? (
+        <p className="text-sm text-muted-foreground" data-testid="council-read-only">
+          Read-only deployment: showing the latest stored council run. New councils cannot be started here.
         </p>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-4">
+          <Button onClick={() => start.mutate()} disabled={running}>
+            {running ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />}
+            {running ? "Council in progress" : s ? "Run a new council" : `Investigate ${entityId} with the council`}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            About 5–7 minutes. You can leave this page — progress is kept in Snowflake.
+          </p>
+        </div>
+      )}
 
       {start.isError && <ErrorLine text={(start.error as Error).message} />}
       {status.isError && <ErrorLine text={(status.error as Error).message} />}
@@ -124,7 +130,7 @@ export function CouncilRunner({ entityId, initialRunId }: { entityId: string; in
 
       {!runId && !start.isPending && (
         <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-          No council has been run for {entityId} yet. Start one to see each specialist’s findings and the Skeptic’s challenges.
+          No council has been run for {entityId} yet.{readOnly ? "" : " Start one to see each specialist’s findings and the Skeptic’s challenges."}
         </p>
       )}
 

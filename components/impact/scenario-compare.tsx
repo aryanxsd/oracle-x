@@ -25,7 +25,7 @@ function value(key: string, v: unknown, meta?: { usd?: boolean; text?: boolean }
  * AGENTS.TOOL_RUN_SCENARIOS run. Observed facts, model assumptions and scenario outputs are kept
  * in separate, labelled sections. No option is recommended.
  */
-export function ScenarioCompare({ entityId, initial }: { entityId: string; initial: ScenarioSet | null }) {
+export function ScenarioCompare({ entityId, initial, readOnly = false }: { entityId: string; initial: ScenarioSet | null; readOnly?: boolean }) {
   const [set, setSet] = useState<ScenarioSet | null>(initial)
   const [state, setState] = useState<"idle" | "running" | "error">("idle")
   const [error, setError] = useState<string | null>(null)
@@ -73,13 +73,19 @@ export function ScenarioCompare({ entityId, initial }: { entityId: string; initi
             "No scenario run is stored for this entity yet."
           )}
         </p>
-        <div className="flex items-center gap-2">
-          <span className="hidden text-xs text-muted-foreground sm:inline">Runs the backend scenario model and stores the result in Snowflake.</span>
-          <Button size="sm" variant="outline" onClick={rerun} disabled={state === "running"}>
-            <RefreshCw className={cn("mr-1.5 h-4 w-4", state === "running" && "animate-spin")} aria-hidden />
-            {state === "running" ? "Running…" : set ? "Re-run scenarios" : "Run scenarios"}
-          </Button>
-        </div>
+        {readOnly ? (
+          <span className="text-xs text-muted-foreground" data-testid="scenario-read-only">
+            Read-only deployment: showing the latest stored scenario run.
+          </span>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs text-muted-foreground sm:inline">Runs the backend scenario model and stores the result in Snowflake.</span>
+            <Button size="sm" variant="outline" onClick={rerun} disabled={state === "running"}>
+              <RefreshCw className={cn("mr-1.5 h-4 w-4", state === "running" && "animate-spin")} aria-hidden />
+              {state === "running" ? "Running…" : set ? "Re-run scenarios" : "Run scenarios"}
+            </Button>
+          </div>
+        )}
       </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -221,8 +227,8 @@ export function ScenarioCompare({ entityId, initial }: { entityId: string; initi
                   </dl>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    The observed baseline (30-day card volume, flagged volume, wires) is returned only when the scenarios are run; it is not stored with past runs. Re-run
-                    the scenarios to see it, or open the blast radius for the observed exposure.
+                    The observed baseline (30-day card volume, flagged volume, wires) is returned only when the scenarios are run; it is not stored with past runs.{" "}
+                    {readOnly ? "Open" : "Re-run the scenarios to see it, or open"} the blast radius for the observed exposure.
                   </p>
                 )}
               </CardContent>

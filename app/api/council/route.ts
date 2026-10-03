@@ -1,5 +1,6 @@
 import { startCouncil } from "@/lib/server/council"
 import { entityId, errorResponse } from "@/lib/server/guards"
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only"
 
 export const dynamic = "force-dynamic"
 
@@ -7,8 +8,10 @@ export const dynamic = "force-dynamic"
  * POST /api/council  { entityId }
  * Starts AGENTS.SP_RUN_COUNCIL asynchronously and returns immediately with the run id.
  * Poll GET /api/council/{runId} for progress. Re-uses a run already in progress for the entity.
+ * Refused with 403 in read-only mode, before any Snowflake call.
  */
 export async function POST(req: Request) {
+  if (isReadOnly()) return readOnlyResponse()
   try {
     const body = await req.json().catch(() => ({}))
     const id = entityId(body.entityId)

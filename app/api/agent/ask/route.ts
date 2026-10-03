@@ -1,5 +1,6 @@
 import { runAgent } from "@/lib/server/cortex-agent"
 import { entityId, errorResponse, question } from "@/lib/server/guards"
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 600
@@ -11,8 +12,10 @@ export const maxDuration = 600
  * The Snowflake token is attached here and never sent to the browser; the
  * agent's server-sent events are streamed through unchanged so the UI can
  * render progress (planning, tool use, specialists, synthesis).
+ * Refused with 403 in read-only mode, before any Snowflake call.
  */
 export async function POST(req: Request) {
+  if (isReadOnly()) return readOnlyResponse()
   try {
     const body = await req.json().catch(() => ({}))
     const id = entityId(body.entityId)

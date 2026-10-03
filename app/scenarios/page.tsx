@@ -6,6 +6,7 @@ import { TechnicalDetails } from "@/components/oracle/technical-details"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EntitySearch } from "@/components/shell/entity-search"
 import { ScenarioCompare } from "@/components/impact/scenario-compare"
+import { isReadOnly } from "@/lib/server/read-only"
 import { getIdentity } from "@/lib/server/investigation"
 import { getLatestScenarios } from "@/lib/server/impact"
 import { PAGE_SOURCES } from "@/lib/data-sources"
@@ -62,7 +63,7 @@ async function Body({ entityId, set }: { entityId: string; set: ReturnType<typeo
       </p>
     )
   }
-  return <ScenarioCompare entityId={entityId} initial={s} />
+  return <ScenarioCompare entityId={entityId} initial={s} readOnly={isReadOnly()} />
 }
 
 function Block() {

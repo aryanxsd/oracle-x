@@ -16,6 +16,7 @@ import { getEvents, getIdentity, getRiskSummary, getTimeline, type Identity } fr
 import { getEvidenceOverview } from "@/lib/server/evidence"
 import { getLatestCouncilRunId } from "@/lib/server/council"
 import { getBandConfig } from "@/lib/server/risk"
+import { isReadOnly } from "@/lib/server/read-only"
 import { PAGE_SOURCES } from "@/lib/data-sources"
 
 export const dynamic = "force-dynamic"
@@ -112,7 +113,7 @@ export default async function InvestigationPage({ params }: { params: Promise<{ 
           </CardHeader>
           <CardContent>
             <Suspense fallback={<CouncilPipeline />}>
-              <CouncilRunner entityId={entityId} initialRunId={latestRun} />
+              <CouncilRunner entityId={entityId} initialRunId={latestRun} readOnly={isReadOnly()} />
             </Suspense>
           </CardContent>
         </Card>

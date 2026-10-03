@@ -1,6 +1,7 @@
 import { getIdentity } from "@/lib/server/investigation"
 import { getLatestScenarios, runScenarios, ScenarioRejected } from "@/lib/server/impact"
 import { entityId, errorResponse } from "@/lib/server/guards"
+import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only"
 
 export const dynamic = "force-dynamic"
 
@@ -18,8 +19,10 @@ export async function GET(req: Request) {
 /**
  * POST /api/scenarios { entityId } — re-runs AGENTS.TOOL_RUN_SCENARIOS. Explicit user action only;
  * the backend stores the results in CASES.SCENARIO_RUNS. Concurrent requests share one run.
+ * Refused with 403 in read-only mode, before any Snowflake call.
  */
 export async function POST(req: Request) {
+  if (isReadOnly()) return readOnlyResponse()
   try {
     const body = await req.json().catch(() => ({}))
     const id = entityId(typeof body?.entityId === "string" ? body.entityId : null)
