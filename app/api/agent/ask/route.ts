@@ -3,7 +3,7 @@ import { entityId, errorResponse, question } from "@/lib/server/guards"
 import { isReadOnly, readOnlyResponse } from "@/lib/server/read-only"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 600
+export const maxDuration = 300 // Vercel Hobby plan maximum
 
 /**
  * POST /api/agent/ask  { entityId, question }
