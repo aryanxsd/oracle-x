@@ -109,9 +109,15 @@ export const SCENARIO_LABEL: Record<string, { label: string; action: string }> =
   BLOCK: { label: "Block", action: "Suspend merchant settlement and stored-value sales" },
 }
 
-export function fmtUsd(v: unknown): string {
+/**
+ * Whole-dollar USD by default. With `cents`, a value that has a fractional part keeps exactly two
+ * decimals (1234.56 → "$1,234.56"); whole values still render without decimals.
+ */
+export function fmtUsd(v: unknown, opts: { cents?: boolean } = {}): string {
   const n = typeof v === "number" ? v : Number(v)
-  return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "—"
+  if (!Number.isFinite(n)) return "—"
+  const digits = opts.cents && !Number.isInteger(n) ? 2 : 0
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
 export function fmtCount(v: unknown): string {

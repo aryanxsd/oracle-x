@@ -24,6 +24,7 @@ import { councilSections, headlineScenarioMetrics, isMixedEvidence, topContribut
 import type { RiskSummary, Identity } from "../../lib/server/investigation"
 import type { EvidenceOverview } from "../../lib/server/evidence"
 import type { BlastRadius, ScenarioSet } from "../../lib/impact-types"
+import { fmtUsd } from "../../lib/impact-types"
 import type { Trace } from "../../lib/trace-types"
 
 afterEach(cleanup)
@@ -93,6 +94,16 @@ describe("decision brief helpers", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     expect(await settled(Promise.reject(new Error("boom")))).toEqual({ ok: false })
   })
+  it("fmtUsd keeps stored cents only when asked, and only when the value has them", () => {
+    expect(fmtUsd(805229.39, { cents: true })).toBe("$805,229.39")
+    expect(fmtUsd("805229.39", { cents: true })).toBe("$805,229.39")
+    expect(fmtUsd(805229, { cents: true })).toBe("$805,229")
+    expect(fmtUsd(1234.5, { cents: true })).toBe("$1,234.50")
+    // Default (every other screen) is unchanged: whole dollars.
+    expect(fmtUsd(805229.39)).toBe("$805,229")
+    expect(fmtUsd(5678.9)).toBe("$5,679")
+    expect(fmtUsd(undefined, { cents: true })).toBe("—")
+  })
 })
 
 describe("decision brief sections", () => {
@@ -107,7 +118,7 @@ describe("decision brief sections", () => {
     await show(<ExecutiveFinding risk={ok(RISK)} evidence={ok(EVIDENCE)} blast={ok(BLAST)} trace={ok(TRACE)} />)
     const glance = screen.getByTestId("finding-glance").textContent!
     expect(glance).toContain("2 connected entities")
-    expect(glance).toContain("$1,235 modeled amount at risk")
+    expect(glance).toContain("$1,234.50 modeled amount at risk")
     expect(glance).toContain("5 evidence items point against")
     expect(glance).toContain("2 evidence items have not been obtained")
     expect(screen.getByTestId("finding-text").textContent).toContain("Stored finding (test).")
@@ -136,7 +147,7 @@ describe("decision brief sections", () => {
     await show(<NetworkSummary blast={ok(BLAST)} entityId="X001" />)
     expect(screen.getByTestId("net-connected").textContent).toBe("2")
     expect(screen.getByText("1 direct · 1 indirect")).toBeTruthy()
-    expect(screen.getByTestId("net-at-risk").textContent).toBe("$1,235")
+    expect(screen.getByTestId("net-at-risk").textContent).toBe("$1,234.50")
     expect(screen.getByTestId("net-customers_affected").textContent).toContain("7")
   })
   it("action simulation orders Do nothing / Monitor / Block and carries the disclaimer", async () => {

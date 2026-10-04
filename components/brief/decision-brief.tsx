@@ -162,7 +162,7 @@ export function ExecutiveFinding({ risk, evidence, blast, trace }: { risk: P<Loa
         <Glance label="Model-derived" kind="MODEL OUTPUT">
           {s ? (
             <>
-              {fmtScore(s.overallDedup ?? s.overall)} adjusted risk ({fmtScore(s.overall)} standard){atRisk && <> · {fmtUsd(atRisk.value)} modeled amount at risk</>}.
+              {fmtScore(s.overallDedup ?? s.overall)} adjusted risk ({fmtScore(s.overall)} standard){atRisk && <> · {fmtUsd(atRisk.value, { cents: true })} modeled amount at risk</>}.
             </>
           ) : (
             "Not available."
@@ -377,7 +377,7 @@ export function NetworkSummary({ blast, entityId }: { blast: P<Loaded<BlastRadiu
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 Modeled amount at risk <ProvenanceChip kind="MODEL OUTPUT" />
               </div>
-              <div className="text-xl font-semibold tabular-nums" data-testid="net-at-risk">{fmtUsd(atRisk.value)}</div>
+              <div className="text-xl font-semibold tabular-nums" data-testid="net-at-risk">{fmtUsd(atRisk.value, { cents: true })}</div>
               <div className="text-xs text-muted-foreground">Exposure at risk — not a loss estimate</div>
             </div>
           )}
