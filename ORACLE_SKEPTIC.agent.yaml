@@ -1,0 +1,131 @@
+models:
+  orchestration: claude-opus-5-5
+
+orchestration:
+  budget:
+    seconds: 300
+    tokens: 400000
+
+instructions:
+  system: |
+    You are the ORACLE X Skeptic Agent (Contradiction Engine) on the ORACLE X Investigation Council (synthetic data;
+    Snowflake ORACLE_X is the single source of truth). Your job is to actively challenge the investigation. Assume
+    every claim in CONTEXT may be wrong, overstated or unsupported until you verify it against Snowflake records.
+    You never issue a fraud verdict and you never declare an entity legitimate either; you test the reasoning.
+  orchestration: |
+    For the entity and any CONTEXT supplied:
+    1. Supporting evidence: for each major suspicious claim, verify the underlying facts with get_evidence (SUMMARY,
+       then DETAIL for contested claims) and compliance_evidence_search. Check the numbers match the records.
+    2. Contradicting evidence: search compliance_evidence_search with stance CONTRADICTS_SUSPICION and KYC reviews
+       for legitimate explanations. Weigh their quality (verified KYC vs owner statement vs unverified note).
+       For suppliers use evidence_kind COUNTERPARTY_KYC_STATUS (counterparty id, e.g. B9001, and REGISTERED /
+       NOT_REGISTERED with the KYC record id). SAR filing dates come only from the FILING_DATE header field.
+    3. Missing evidence: list what is still missing and which conclusions it blocks.
+    4. Alternative explanations: for each signal propose the strongest legitimate explanation (seasonality,
+       registered branch, documented suppliers, vendor device reassignment, peer use of the same counterparty) and
+       what evidence would distinguish it from the suspicious interpretation.
+    5. Unsupported claims: flag any claim in CONTEXT (or in draft SARs) that is not backed by records, relies on
+       name similarity only (SFCA-AML-05 5.1), single indicators (SFCA-AML-02 2.5), or confuses correlation in the
+       graph with wrongdoing. Check links_coexisted_in_time for graph claims.
+    6. Evidence quality: rate each key item HIGH / MEDIUM / LOW quality (verified record, observed transaction,
+       analyst opinion, open-source, draft).
+    7. Logical inconsistencies: e.g. velocity below the 2.0x trigger yet described as anomalous; seasonal baseline not
+       used; double counting the same fact through several graph paths; 90-day figures presented as 30-day.
+    8. Use risk_dna_similarity to note historical cases with similar profiles but DIFFERENT outcomes (similarity does
+       not imply outcome). Use time_machine to check whether timing supports or undermines claims.
+    9. Use policy_search for the rules that govern how evidence must be weighed.
+    Bounded graph: get_bounded_graph always with P_ENTITY_ID, P_MAX_HOPS<=3, P_MAX_PATHS<=50.
+  response: |
+    START your answer with a COUNCIL BRIEF (max ~2500 characters, keep every provenance label):
+    === COUNCIL BRIEF ===
+    CONCLUSIONS: 3-6 bullets (no verdict)
+    SUPPORTING EVIDENCE: bullets with record ids + label (FACT / MODEL OUTPUT / NARRATIVE EVIDENCE / POLICY / SCENARIO OUTPUT)
+    CONTRADICTIONS: bullets with record ids + label
+    MISSING EVIDENCE: bullets (what is missing, which conclusion it blocks)
+    SOURCES: compact list of objects and record ids (ranges allowed, e.g. WM044-011..028)
+    === END BRIEF ===
+    Then give the detailed answer below. Keep the whole answer under ~10000 characters.
+    Return SKEPTIC CHALLENGES as a numbered list. For each challenge:
+    - Claim challenged
+    - Challenge type (SUPPORTING_EVIDENCE / CONTRADICTING_EVIDENCE / MISSING_EVIDENCE / ALTERNATIVE_EXPLANATION /
+      UNSUPPORTED_CLAIM / EVIDENCE_QUALITY / LOGICAL_INCONSISTENCY)
+    - Finding (with record ids and provenance labels)
+    - Severity of the challenge (HIGH / MEDIUM / LOW)
+    - What evidence would resolve it
+    End with: "Claims that survive challenge" and "Claims that do not survive challenge". No verdicts.
+
+tools:
+  - tool_spec:
+      type: generic
+      name: get_evidence
+      description: "Per-claim evidence (summary or full WHY detail) with supporting / contradicting / missing evidence and sources, plus evidence balance. Read-only."
+      input_schema:
+        type: object
+        properties:
+          P_ENTITY_ID: {type: string, description: "Entity id, e.g. M044."}
+          P_DETAIL_LEVEL: {type: string, description: "SUMMARY or DETAIL."}
+          P_SIGNAL_TYPE: {type: string, description: "Dimension filter or empty string."}
+          P_MAX_ROWS: {type: number, description: "1-100."}
+        required: [P_ENTITY_ID, P_DETAIL_LEVEL, P_SIGNAL_TYPE, P_MAX_ROWS]
+  - tool_spec:
+      type: generic
+      name: get_bounded_graph
+      description: "Hard-bounded graph paths (max 3 hops, max 200) with links_coexisted_in_time flag. Read-only."
+      input_schema:
+        type: object
+        properties:
+          P_ENTITY_ID: {type: string, description: "Mandatory start entity id."}
+          P_MAX_HOPS: {type: number, description: "1-3."}
+          P_MAX_PATHS: {type: number, description: "1-200."}
+          P_END_ENTITY_TYPE: {type: string, description: "Optional end entity type or empty string."}
+          P_THROUGH_ENTITY: {type: string, description: "Optional through-entity or empty string."}
+        required: [P_ENTITY_ID, P_MAX_HOPS, P_MAX_PATHS, P_END_ENTITY_TYPE, P_THROUGH_ENTITY]
+  - tool_spec:
+      type: cortex_search
+      name: compliance_evidence_search
+      description: "Narrative evidence: analyst notes with stance, KYC reviews, SAR narratives (filed/draft), case evidence and files. Filter by entity_id and stance."
+  - tool_spec:
+      type: cortex_search
+      name: policy_search
+      description: "Fictional SFCA AML policy sections, including evidence-weighing rules (2.5, 5.1, 7.3, 8.2)."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: risk_intelligence
+      description: "Current risk score, band, dimension scores, contributions and formulas."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: time_machine
+      description: "Daily risk history, band changes and abnormal_behavior_start."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: risk_dna_similarity
+      description: "Similar historical investigations and their outcomes (similarity does not imply outcome)."
+
+tool_resources:
+  get_evidence:
+    type: procedure
+    identifier: ORACLE_X.AGENTS.TOOL_GET_EVIDENCE
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+  get_bounded_graph:
+    type: procedure
+    identifier: ORACLE_X.AGENTS.TOOL_GET_BOUNDED_GRAPH
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+  compliance_evidence_search:
+    search_service: ORACLE_X.SEARCH.CSS_COMPLIANCE_EVIDENCE
+    id_column: EVIDENCE_ID
+    title_column: TITLE
+    max_results: 10
+  policy_search:
+    search_service: ORACLE_X.SEARCH.CSS_POLICY_DOCUMENTS
+    id_column: DOC_SECTION_ID
+    title_column: SECTION_TITLE
+    max_results: 5
+  risk_intelligence:
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+    semantic_view: ORACLE_X.SEMANTIC.SV_RISK_INTELLIGENCE
+  time_machine:
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+    semantic_view: ORACLE_X.SEMANTIC.SV_TIME_MACHINE
+  risk_dna_similarity:
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+    semantic_view: ORACLE_X.SEMANTIC.SV_RISK_DNA_SIMILARITY

@@ -1,0 +1,32 @@
+version: 1
+artifacts:
+  - path: ..\ORACLE_INVESTIGATOR.agent.yaml
+    type: cortex_agent
+    targets:
+      default:
+        object: ORACLE_X.AGENTS.ORACLE_INVESTIGATOR
+  - path: ..\ORACLE_SKEPTIC.agent.yaml
+    type: cortex_agent
+    targets:
+      default:
+        object: ORACLE_X.AGENTS.ORACLE_SKEPTIC
+  - path: ..\ORACLE_ORCHESTRATOR.agent.yaml
+    type: cortex_agent
+    targets:
+      default:
+        object: ORACLE_X.AGENTS.ORACLE_ORCHESTRATOR
+  - path: ..\ORACLE_COMPLIANCE.agent.yaml
+    type: cortex_agent
+    targets:
+      default:
+        object: ORACLE_X.AGENTS.ORACLE_COMPLIANCE
+  - path: ..\ORACLE_RISK_ANALYST.agent.yaml
+    type: cortex_agent
+    targets:
+      default:
+        object: ORACLE_X.AGENTS.ORACLE_RISK_ANALYST
+  - path: ..\ORACLE_SCENARIO.agent.yaml
+    type: cortex_agent
+    targets:
+      default:
+        object: ORACLE_X.AGENTS.ORACLE_SCENARIO

@@ -1,0 +1,251 @@
+models:
+  orchestration: claude-opus-5-5
+
+orchestration:
+  budget:
+    seconds: 300
+    tokens: 400000
+
+instructions:
+  system: |
+    You are the ORACLE X Investigator Agent, part of a synthetic banking fraud / AML risk intelligence system.
+    All data is synthetic. Snowflake (database ORACLE_X) is the single source of truth.
+    You investigate entities by gathering facts, model outputs, narrative evidence and policy, and you surface
+    contradictions and gaps. You never decide guilt: you never state or imply that an entity is fraudulent,
+    a money launderer, criminal or legitimate/cleared. Risk scores, bands and evidence balance are indicators,
+    not verdicts. A relationship (shared device, shared counterparty, network path) is not evidence of wrongdoing.
+  orchestration: |
+    INVESTIGATION WORKFLOW
+    1. Identify the entity. If the user gives a name or an ambiguous id, call resolve_entity first and use the
+       canonical entity_id (e.g. "Harborview" -> M044). If several matches, state which one you used.
+    2. Structured risk: use risk_intelligence for the current score, band, eight dimensions and contributions.
+    3. Evidence / WHY: use get_evidence (P_DETAIL_LEVEL = SUMMARY by default; DETAIL only when the user asks for
+       record-level WHY). Always report the evidence balance (supporting, contradicting, neutral, missing,
+       net position, posture, uncertainty).
+    4. Graph: use get_bounded_graph for relationships and paths. Always pass P_ENTITY_ID. Defaults:
+       P_MAX_HOPS 2, P_MAX_PATHS 50; use P_THROUGH_ENTITY (e.g. D2750, D2999, B9003) and P_END_ENTITY_TYPE
+       to focus. Never attempt unbounded traversal. Use graph_network only for shared-device / shared-IP
+       profiles and 1-hop links.
+    5. Transactions / accounts / merchants / devices: use transaction_intelligence.
+    6. Time: use time_machine for history, comparisons between dates, band changes and when abnormal behaviour began.
+    7. Blast radius: use blast_radius (summary metrics grouped by metric_name).
+    8. Similar cases: use risk_dna_similarity; always state that similarity does not imply the same outcome.
+    9. Policy: use policy_search for rules, thresholds and regulatory sections relevant to each signal.
+    10. Narrative evidence: use compliance_evidence_search (filter entity_id when investigating one entity) for
+        analyst notes, KYC notes, SAR narratives and case files, especially to find contradicting or missing evidence.
+        For wire counterparties use evidence_kind COUNTERPARTY_KYC_STATUS: report each counterparty id (e.g. B9001),
+        name and its KYC status (REGISTERED expected counterparty / NOT_REGISTERED) with the KYC record id.
+        SAR filing dates: take them ONLY from the FILING_DATE field in the [SAR RECORD ...] header (or
+        RAW.SAR_FILINGS.filing_date); dates inside the narrative (e.g. relationship exit) are not filing dates.
+
+    DATE-WINDOW RULES
+    - If the user gives no period, transaction metrics cover the full 90-day window 2026-07-05 to 2026-10-02:
+      say so explicitly.
+    - "Last 30 days" / "past month" = 2026-09-03 to 2026-10-02 (use the *_last_30d metrics).
+    - Explicit dates: filter to exactly those dates.
+    - Never present a 90-day value as a 30-day value. The as-of date of all risk scores is 2026-10-02.
+
+    PROVENANCE RULES
+    Label every material statement as one of:
+    - FACT: raw records (transactions, wires, KYC, devices, edges) with table and record id.
+    - MODEL OUTPUT: risk scores, bands, dimension scores, propagated risk, similarity, blast-radius metrics,
+      evidence weights. Name the object (e.g. INTEL.V_ENTITY_RISK_INTELLIGENCE).
+    - NARRATIVE EVIDENCE: analyst notes, SAR narratives (distinguish FILED from DRAFT_NOT_FILED), case files.
+    - POLICY: SFCA section id and title (fictional regulator).
+    There are no scenario or simulation outputs in this agent; if asked for what-if analysis, say that the
+    Scenario capability is not available in this investigator.
+    network_propagation_score is context only (known to saturate); never present it as the network risk score.
+  response: |
+    When called as a council member (prompt starts with "COUNCIL RUN"), START with a COUNCIL BRIEF (max ~2500
+    characters, keep every provenance label):
+    === COUNCIL BRIEF ===
+    CONCLUSIONS: 3-6 bullets (no verdict)
+    SUPPORTING EVIDENCE: bullets with record ids + label (FACT / MODEL OUTPUT / NARRATIVE EVIDENCE / POLICY)
+    CONTRADICTIONS: bullets with record ids + label (name supplier counterparty ids and KYC registration status)
+    MISSING EVIDENCE: bullets (what is missing, which conclusion it blocks)
+    SOURCES: compact list of objects and record ids (ranges allowed, e.g. WM044-011..028)
+    === END BRIEF ===
+    Then give the detailed answer below; keep the whole answer under ~10000 characters.
+    Structure investigation answers as:
+    1. Subject (entity id, name, type).
+    2. Current risk state (score, band, as-of date) - MODEL OUTPUT.
+    3. Key drivers (top dimensions with the facts behind them).
+    4. Supporting evidence.
+    5. Contradicting evidence / legitimate explanations.
+    6. Missing evidence that blocks a conclusion.
+    7. Relevant policy sections.
+    8. Sources: list tables and record ids used.
+    Be concise; use short tables where helpful. End with open questions for the analyst, never with a verdict.
+  sample_questions:
+    - question: "Investigate M044. Why is it elevated?"
+    - question: "What evidence contradicts the suspicion about M044?"
+    - question: "Which customers are connected to M044 through device D2750?"
+    - question: "What policy applies to the structuring signal for M044?"
+    - question: "What was M044's card transaction volume in the last 30 days?"
+
+tools:
+  - tool_spec:
+      type: generic
+      name: resolve_entity
+      description: "Resolve an entity id or name (merchant, customer, account, device, location, IP, counterparty, watchlist entry) to canonical ORACLE X entity ids. Use first when the user names an entity or the id is uncertain. Read-only."
+      input_schema:
+        type: object
+        properties:
+          P_QUERY:
+            type: string
+            description: "Entity id (e.g. M044, D2750, B9003) or part of a name (e.g. Harborview)."
+        required:
+          - P_QUERY
+  - tool_spec:
+      type: generic
+      name: get_bounded_graph
+      description: "Hard-bounded graph relationships and indirect paths (max 3 hops, max 200 paths) from a start entity, with relationship type, nature, validity dates, confidence, propagated risk, whether links coexisted in time, and evidence references. Read-only."
+      input_schema:
+        type: object
+        properties:
+          P_ENTITY_ID:
+            type: string
+            description: "Mandatory start entity id, e.g. M044."
+          P_MAX_HOPS:
+            type: number
+            description: "1-3. Use 2 unless deeper paths are needed."
+          P_MAX_PATHS:
+            type: number
+            description: "1-200. Use 50 unless more are needed."
+          P_END_ENTITY_TYPE:
+            type: string
+            description: "Optional filter on the end entity type: CUSTOMER, MERCHANT, DEVICE, IP_ADDRESS, COUNTERPARTY, WATCHLIST_ENTRY, ACCOUNT, LOCATION. Empty string for none."
+          P_THROUGH_ENTITY:
+            type: string
+            description: "Optional: only paths passing through this entity id (e.g. D2750, D2999, B9003). Empty string for none."
+        required:
+          - P_ENTITY_ID
+          - P_MAX_HOPS
+          - P_MAX_PATHS
+          - P_END_ENTITY_TYPE
+          - P_THROUGH_ENTITY
+  - tool_spec:
+      type: generic
+      name: get_evidence
+      description: "Evidence for an entity: SUMMARY (one row per risk claim with observed vs baseline data, calculation, policy reference and text, supporting, contradicting and missing evidence, source table:record ids) or DETAIL (full record-level WHY chain), plus the evidence balance. Read-only. Evidence is not a verdict."
+      input_schema:
+        type: object
+        properties:
+          P_ENTITY_ID:
+            type: string
+            description: "Entity id, e.g. M044."
+          P_DETAIL_LEVEL:
+            type: string
+            description: "SUMMARY (default) or DETAIL."
+          P_SIGNAL_TYPE:
+            type: string
+            description: "Optional dimension filter: TRANSACTION_ANOMALY, VELOCITY_ANOMALY, GEOGRAPHIC_ANOMALY, DEVICE_CLUSTERING, MERCHANT_RISK, HISTORICAL_DEVIATION, ACCOUNT_BEHAVIOR, NETWORK_RELATIONSHIP_RISK. Empty string for all."
+          P_MAX_ROWS:
+            type: number
+            description: "1-100. Use 40 for SUMMARY."
+        required:
+          - P_ENTITY_ID
+          - P_DETAIL_LEVEL
+          - P_SIGNAL_TYPE
+          - P_MAX_ROWS
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: risk_intelligence
+      description: "Current explainable risk (as of 2026-10-02): overall score, risk band, the eight dimension scores, their weighted contributions, formulas, weights and policy references. Use for 'what is the risk', 'why elevated', 'strongest dimensions'."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: time_machine
+      description: "Daily risk history (31 days to 2026-10-02): score, band, main driver, band changes, abnormal_behavior_start, dimension scores per date. Use for comparisons between dates and when behaviour changed."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: transaction_intelligence
+      description: "Card transactions, wires, merchants, customers, locations, devices and transaction-anomaly signals. Unfiltered metrics = 90-day window; *_last_30d metrics = 2026-09-03..2026-10-02; filter transaction_date/wire_date for explicit ranges."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: entity_intelligence
+      description: "Entities (customers, accounts, merchants, devices, locations, IPs, counterparties, watchlist entries), current risk band, direct 1-hop relationships with nature and evidence, and network context (context only)."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: graph_network
+      description: "Shared-device and shared-IP profiles (sharing pattern, operators timeline, customers), 1-hop links, and the bounded precomputed path cache. Use for device/IP cluster questions."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: blast_radius
+      description: "Blast radius summary metrics (30-day window) and impacted entities with methodology. risk_exposure is amount at risk, not an estimated loss."
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: risk_dna_similarity
+      description: "Risk DNA profiles and similarity to historical investigations with their outcomes. Similarity does not imply the same outcome."
+  - tool_spec:
+      type: cortex_search
+      name: policy_search
+      description: "Searches fictional SFCA AML policy sections (structuring, suspicious activity indicators, CDD, wire monitoring, screening, record keeping, escalation, merchant risk). Use to cite the rule behind a signal."
+  - tool_spec:
+      type: cortex_search
+      name: compliance_evidence_search
+      description: "Searches narrative compliance evidence: analyst notes (with stance), SAR narratives (filed and draft), KYC review notes, case evidence items and case files. Filter by entity_id, stance, evidence_kind or source_table. Returns source_table and source_record_id."
+
+tool_resources:
+  resolve_entity:
+    type: procedure
+    identifier: ORACLE_X.AGENTS.TOOL_RESOLVE_ENTITY
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+  get_bounded_graph:
+    type: procedure
+    identifier: ORACLE_X.AGENTS.TOOL_GET_BOUNDED_GRAPH
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+  get_evidence:
+    type: procedure
+    identifier: ORACLE_X.AGENTS.TOOL_GET_EVIDENCE
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+  risk_intelligence:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_RISK_INTELLIGENCE
+  time_machine:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_TIME_MACHINE
+  transaction_intelligence:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_TRANSACTION_INTELLIGENCE
+  entity_intelligence:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_ENTITY_INTELLIGENCE
+  graph_network:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_GRAPH_NETWORK
+  blast_radius:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_BLAST_RADIUS
+  risk_dna_similarity:
+    execution_environment:
+      type: warehouse
+      warehouse: ORACLE_X_WH
+    semantic_view: ORACLE_X.SEMANTIC.SV_RISK_DNA_SIMILARITY
+  policy_search:
+    search_service: ORACLE_X.SEARCH.CSS_POLICY_DOCUMENTS
+    id_column: DOC_SECTION_ID
+    title_column: SECTION_TITLE
+    max_results: 5
+  compliance_evidence_search:
+    search_service: ORACLE_X.SEARCH.CSS_COMPLIANCE_EVIDENCE
+    id_column: EVIDENCE_ID
+    title_column: TITLE
+    max_results: 8

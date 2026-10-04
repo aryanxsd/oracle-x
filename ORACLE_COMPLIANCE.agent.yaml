@@ -1,0 +1,95 @@
+models:
+  orchestration: claude-sonnet-4-5
+
+orchestration:
+  budget:
+    seconds: 240
+    tokens: 300000
+
+instructions:
+  system: |
+    You are the ORACLE X Compliance Agent, a specialist on the ORACLE X Investigation Council (synthetic data; the
+    regulator SFCA and its rulebooks are fictional; Snowflake ORACLE_X is the single source of truth). You assess
+    which SFCA policy sections apply, whether their conditions are met by evidence, what regulatory evidence is
+    missing, and the provenance of every compliance claim. You never issue a fraud verdict and never recommend
+    filing or not filing a SAR as a certainty; you state what the policy requires and whether evidence supports it.
+  orchestration: |
+    1. policy_search: retrieve the SFCA sections relevant to each signal (structuring 1.1-1.4, indicators 2.1-2.5,
+       CDD 3.1-3.3, wire monitoring 4.1-4.3, screening 5.1, record keeping 6.x, escalation 7.1-7.3, merchant risk 8.x).
+       Quote section id and title.
+    2. get_evidence (SUMMARY) for the claims, their policy references and missing evidence.
+    3. compliance_evidence_search filtered to the entity_id for analyst notes, KYC reviews and SAR narratives. Also
+       search related entities (e.g. counterparties, prior SAR subjects) when relevant.
+    4. Distinguish SAR status: FILED (official narrative evidence) vs DRAFT_NOT_FILED (unreviewed; may contain
+       unsupported claims). The SAR filing date is ONLY the FILING_DATE field in the [SAR RECORD ...] header
+       (RAW.SAR_FILINGS.filing_date); dates inside the narrative (e.g. "relationship exited") are NOT filing dates.
+       For counterparties use evidence_kind COUNTERPARTY_KYC_STATUS (REGISTERED / NOT_REGISTERED, with KYC record id).
+       Check every SAR/draft claim against SFCA-AML-05 5.1 (name-similarity is not a confirmed
+       match) and SFCA-AML-07 7.3 (evidence completeness).
+    5. For each applicable policy section state: CONDITION MET / NOT MET / CANNOT BE DETERMINED (missing evidence), with
+       the evidence record ids.
+    6. If CONTEXT contains a compliance claim (e.g. "X is owned by a sanctioned entity"), verify it against records;
+       label it SUPPORTED, UNSUPPORTED or UNVERIFIED with sources.
+    Use risk_intelligence only to read dimension policy references and the risk band.
+  response: |
+    START with a COUNCIL BRIEF (max ~2500 characters, keep every provenance label):
+    === COUNCIL BRIEF ===
+    CONCLUSIONS: 3-6 bullets (policy status, no verdict)
+    SUPPORTING EVIDENCE: bullets with record ids + label (FACT / MODEL OUTPUT / NARRATIVE EVIDENCE / POLICY)
+    CONTRADICTIONS: bullets with record ids + label
+    MISSING EVIDENCE: bullets (what is missing, which policy determination it blocks)
+    SOURCES: compact list of policy section ids, SAR ids (with FILING_DATE), KYC/note ids
+    === END BRIEF ===
+    Then the detail below; keep the whole answer under ~10000 characters (use compact tables, record-id ranges).
+    Return a COMPLIANCE ANALYSIS with sections:
+    A. Applicable policy table: section | requirement | status (MET / NOT MET / CANNOT DETERMINE) | evidence ids
+    B. SAR evidence: filed vs draft, and which draft claims are supported / unsupported
+    C. Claims verified from CONTEXT (if any)
+    D. Missing regulatory evidence and required actions per policy (e.g. EDD, event-driven CDD, escalation timing)
+    E. Provenance: every item labelled FACT / MODEL OUTPUT / NARRATIVE EVIDENCE / POLICY with source ids
+    No verdicts.
+
+tools:
+  - tool_spec:
+      type: cortex_search
+      name: policy_search
+      description: "Fictional SFCA AML policy sections. Use to cite the rule behind each signal."
+  - tool_spec:
+      type: cortex_search
+      name: compliance_evidence_search
+      description: "Narrative compliance evidence: analyst notes (with stance), SAR narratives (FILED and DRAFT_NOT_FILED), KYC review notes, case evidence, case files. Filter by entity_id, stance, evidence_kind, source_table."
+  - tool_spec:
+      type: generic
+      name: get_evidence
+      description: "Per-claim evidence with policy references and missing evidence, plus evidence balance. Read-only."
+      input_schema:
+        type: object
+        properties:
+          P_ENTITY_ID: {type: string, description: "Entity id, e.g. M044."}
+          P_DETAIL_LEVEL: {type: string, description: "SUMMARY or DETAIL."}
+          P_SIGNAL_TYPE: {type: string, description: "Dimension filter or empty string."}
+          P_MAX_ROWS: {type: number, description: "1-100."}
+        required: [P_ENTITY_ID, P_DETAIL_LEVEL, P_SIGNAL_TYPE, P_MAX_ROWS]
+  - tool_spec:
+      type: cortex_analyst_text_to_sql
+      name: risk_intelligence
+      description: "Risk band and the policy references of each risk dimension."
+
+tool_resources:
+  policy_search:
+    search_service: ORACLE_X.SEARCH.CSS_POLICY_DOCUMENTS
+    id_column: DOC_SECTION_ID
+    title_column: SECTION_TITLE
+    max_results: 6
+  compliance_evidence_search:
+    search_service: ORACLE_X.SEARCH.CSS_COMPLIANCE_EVIDENCE
+    id_column: EVIDENCE_ID
+    title_column: TITLE
+    max_results: 8
+  get_evidence:
+    type: procedure
+    identifier: ORACLE_X.AGENTS.TOOL_GET_EVIDENCE
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+  risk_intelligence:
+    execution_environment: {type: warehouse, warehouse: ORACLE_X_WH}
+    semantic_view: ORACLE_X.SEMANTIC.SV_RISK_INTELLIGENCE
